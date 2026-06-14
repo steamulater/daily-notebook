@@ -44,3 +44,80 @@ MIT — fully open source, no commercial use restrictions.
 - [Move over, AlphaFold: open-source model predicts shape of 1 billion proteins](https://www.nature.com/articles/d41586-026-01686-3)
 
 ---
+
+## 2026-06-14
+
+### ESMFold2 & ESMC-6B — Local Installation
+
+#### Installed
+
+- `esm 3.3.0` via `pip install esm@git+https://github.com/Biohub/esm.git@c94ed8d`
+- ESMFold2 weights pulled from `biohub/ESMFold2` (1.3 GB) — `~/.cache/huggingface/hub/models--biohub--ESMFold2/`
+- ESMC-6B weights pulled from `biohub/ESMC-6B` (24 GB) — `~/.cache/huggingface/hub/models--biohub--ESMC-6B/`
+
+#### Working inference setup (Mac Apple Silicon)
+
+MPS does not work — `scatter_reduce` and Metal `GatherND` ops unsupported. CPU + float32 works:
+
+```python
+from transformers.models.esmfold2.modeling_esmfold2 import ESMFold2Model
+from esm.models.esmfold2 import ESMFold2InputBuilder, ProteinInput, StructurePredictionInput
+import torch
+
+model = ESMFold2Model.from_pretrained("biohub/ESMFold2").float().cpu().eval()
+
+spi = StructurePredictionInput(sequences=[ProteinInput(id="A", sequence="YOUR_SEQUENCE")])
+result = ESMFold2InputBuilder().fold(model, spi, num_loops=1, num_sampling_steps=5, num_diffusion_samples=1, seed=42)
+
+print(result.ptm, result.plddt)
+```
+
+#### Extracting ESMC-6B from ESMFold2
+
+ESMC-6B (6.35B params) is embedded as `model._esmc` — no separate load needed:
+
+```python
+esmc = model._esmc  # ESMCModel, 6345M params
+```
+
+ESMC-6B weights stored separately, referenced via `"esmc_id": "biohub/ESMC-6B"` in ESMFold2's `config.json`.
+
+#### AirDrop sharing
+
+To share weights with another Mac:
+- ESMFold2: zip `~/.cache/huggingface/hub/models--biohub--ESMFold2` (1.3 GB)
+- ESMC-6B: zip `~/.cache/huggingface/hub/models--biohub--ESMC-6B` (24 GB)
+- Recipient: unzip both into `~/.cache/huggingface/hub/`
+
+---
+
+### Tool Landscape — Protein Binder Design on Mac
+
+| Tool | Runnable locally? | Blocker |
+|---|---|---|
+| **ESMFold2** | Yes (CPU, slow) | MPS unsupported |
+| **BindCraft** | No | Linux + CUDA only, 32 GB VRAM needed |
+| **BoltzGen** | Possibly | macOS supported; GPU fallback unclear; `pip install boltzgen` |
+
+---
+
+### Storage Audit
+
+Disk at 98% capacity (862/926 GB used, 25 GB free).
+
+| Location | Size | Notes |
+|---|---|---|
+| `~/Desktop/videos_for_edit` | 359 GB | 373 MP4s — already compressed, move to external drive |
+| `~/Desktop/Screenshots` | 67 GB | Cleanup candidate |
+| `~/Library/Application Support` | 54 GB | Check for old Xcode device support files |
+| `~/.cache/huggingface` | 48 GB | ESMFold2 + ESMC-6B weights — in use |
+| `~/Movies` | 44 GB | Move to external drive |
+| `~/Desktop/adaptyv_competition` | 37 GB | Archive if done |
+| `~/Desktop/screenplays` | 28 GB | Investigate — text shouldn't be this large |
+| `~/Desktop/important_docs` | 20 GB | Move to iCloud |
+| `~/Library/Caches` | 9.6 GB | Safe to clear |
+| `~/anaconda3` | 9 GB | Prune unused conda envs |
+
+Quick wins: videos + movies + Library/Caches = ~475 GB recoverable.
+
+---
